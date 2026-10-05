@@ -8,7 +8,7 @@ import {
   setMboxRerender, mboxLoad, mboxPage, mboxFilter, mboxToggle, mboxImport,
   mboxRemove, mboxDelete, mboxSelection, mboxVerify, mboxStop, mboxOnOauthDone, mboxRunning, mboxCurrent, mboxStats,
   mboxSelectAll, mboxSelectNone, mboxToggleRow, mboxExport, mboxRetryFailed, mboxDismissResult, mboxUpdateLine, mboxReauth,
-  mboxSkipCurrent, mboxCapturing, mboxOnCaptureDone, mboxCancelCapture,
+  mboxSkipCurrent, mboxCapturing, mboxCapture, mboxOnCaptureDone, mboxCancelCapture,
 } from "./mbox.js";
 
 const $app = document.getElementById("app");
