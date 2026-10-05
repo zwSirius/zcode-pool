@@ -218,16 +218,19 @@ export function mboxCapture(prefer) {
     return;
   }
   const zaiFirst = prefer !== "bigmodel";
+  const first = zaiFirst ? "zai" : "bigmodel";
+  const second = zaiFirst ? "bigmodel" : "zai";
+  const label = (p) => t(p === "zai" ? "mb.captureZai" : "mb.captureBigmodel");
   openConfirmModal({
     kind: "plain",
     icon: "userPlus",
     vertical: true,
     title: t("mb.capturePickTitle"),
     desc: t("mb.capturePickDesc"),
-    yesLabel: zaiFirst ? t("mb.captureZai") : t("mb.captureBigmodel"),
-    noLabel: zaiFirst ? t("mb.captureBigmodel") : t("mb.captureZai"),
-    onYes: () => startCapture("zai"),
-    onNo: () => startCapture("bigmodel"),
+    yesLabel: label(first),
+    noLabel: label(second),
+    onYes: () => startCapture(first),
+    onNo: () => startCapture(second),
   });
 }
 
