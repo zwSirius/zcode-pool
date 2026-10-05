@@ -222,6 +222,7 @@ export function mboxCapture(prefer) {
   openConfirmModal({
     kind: "plain",
     icon: "userPlus",
+    vertical: true,
     title: t("mb.capturePickTitle"),
     desc: t("mb.capturePickDesc"),
     yesLabel: zaiFirst ? t("mb.captureZai") : t("mb.captureBigmodel"),

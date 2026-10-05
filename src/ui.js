@@ -89,7 +89,7 @@ export function openConfirmModal(m) {
         <span>${esc(m.title)}</span>
       </div>
       ${m.desc ? `<div class="mbody"><div class="mnote">${m.desc}</div></div>` : ""}
-      <div class="mfoot">
+      <div class="mfoot${m.vertical ? " col" : ""}">
         <button class="btn g cf-no">${esc(m.noLabel || t("common.cancel"))}</button>
         <button class="btn ${kind === "danger" ? "d" : "p"} cf-yes">${esc(m.yesLabel || t("common.confirm"))}</button>
       </div>
