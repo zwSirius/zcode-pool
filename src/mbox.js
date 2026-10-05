@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { t } from "./i18n.js";
 import { ic } from "./icons.js";
-import { esc, toast, openLineModal } from "./ui.js";
+import { esc, toast, openLineModal, openConfirmModal } from "./ui.js";
 import { regStart, regBatchSet } from "./reg.js";
 
 let rerender = () => {};
@@ -213,16 +213,30 @@ export function mboxCancelCapture() {
   M.capturing = false;
 }
 
-export function mboxCapture() {
+export function mboxCapture(prefer) {
   if (M.capturing) {
     toast(t("mb.captureBusy"), "warn");
     return;
   }
+  const zaiFirst = prefer !== "bigmodel";
+  openConfirmModal({
+    kind: "plain",
+    icon: "userPlus",
+    title: t("mb.capturePickTitle"),
+    desc: t("mb.capturePickDesc"),
+    yesLabel: zaiFirst ? t("mb.captureZai") : t("mb.captureBigmodel"),
+    noLabel: zaiFirst ? t("mb.captureBigmodel") : t("mb.captureZai"),
+    onYes: () => startCapture("zai"),
+    onNo: () => startCapture("bigmodel"),
+  });
+}
+
+function startCapture(provider) {
   M.capturing = true;
   rerender();
-  invoke("oauth_begin", { provider: "zai", mode: "observe" })
+  invoke("oauth_begin", { provider, mode: "observe" })
     .then((r) => {
-      regStart(r?.mode || "observe", "zai");
+      regStart(r?.mode || "observe", provider);
       toast(t("mb.captureWindow"), "ok");
     })
     .catch((e) => {

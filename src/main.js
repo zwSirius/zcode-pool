@@ -181,7 +181,7 @@ const actions = {
     render();
   },
   async mboxImport() { await mboxImport(); },
-  async mboxCapture() { mboxCapture(); },
+  async mboxCapture() { mboxCapture(state.auth_proxy_on ? "zai" : "bigmodel"); },
   async mboxVerify() { await mboxVerify(); },
   async mboxStop() { mboxStop(); },
   async mboxFilter(f) { mboxFilter(f); },

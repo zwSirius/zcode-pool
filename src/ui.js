@@ -101,7 +101,10 @@ export function openConfirmModal(m) {
   const close = () => { document.removeEventListener("keydown", ov._key); ov.remove(); };
   ov.querySelector(".modal").addEventListener("click", (e) => e.stopPropagation());
   ov.addEventListener("click", close);
-  no.addEventListener("click", close);
+  no.addEventListener("click", () => {
+    if (m.onNo) { yes.disabled = true; no.disabled = true; m.onNo(); }
+    close();
+  });
   yes.addEventListener("click", async () => {
     yes.disabled = true; no.disabled = true;
     try { await m.onYes?.(); } finally { close(); }
