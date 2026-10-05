@@ -58,6 +58,7 @@ export function mboxPage() {
   const b = M.batch;
   const verified = M.list.filter((a) => a.status === "verified").length;
   const attention = M.list.filter((a) => a.status === "failed" || a.status === "invalid").length;
+  const selNew = [...M.sel].filter((e) => M.list.find((x) => x.email === e)?.status === "new").length;
   const progress = b.running
     ? `<div class="prog">
          <div class="prog-bar"><i style="width:${b.total ? Math.round((b.done / b.total) * 100) : 0}%"></i></div>
@@ -111,7 +112,7 @@ export function mboxPage() {
       <button class="btn p" click="actions.mboxImport()" ${b.running ? "disabled" : ""}>${ic("import", 15)} ${t("mb.import")}</button>
       <button class="btn p" click="actions.mboxCapture()" ${b.running || M.capturing ? "disabled" : ""} title="${esc(t("mb.captureTitle"))}">${ic("userPlus", 15)} ${t("mb.capture")}</button>
       <button class="btn" click="actions.mboxExport()" ${M.list.length && !b.running ? "" : "disabled"}>${ic("export", 14)} ${t("mb.export")}</button>
-      <button class="btn" click="actions.mboxVerify()" ${!M.sel.size || b.running ? "disabled" : ""}>${ic("play", 14)} ${t("mb.verify")}${M.sel.size ? ` (${M.sel.size})` : ""}</button>
+      <button class="btn" click="actions.mboxVerify()" ${!selNew || b.running ? "disabled" : ""} title="${esc(t("mb.tip"))}">${ic("play", 14)} ${t("mb.verify")}${selNew ? ` (${selNew})` : ""}</button>
       <button class="btn" click="actions.mboxStop()" ${b.running ? "" : "disabled"}>${ic("power", 14)} ${t("mb.stop")}</button>
       <span class="spacer"></span>
       <button class="btn d" click="actions.mboxDelete()" ${M.sel.size && !b.running ? "" : "disabled"}>${ic("trash", 14)} ${t("mb.delete")}${M.sel.size ? ` (${M.sel.size})` : ""}</button>
@@ -154,8 +155,7 @@ export function mboxPage() {
 }
 
 function selAllOn(rows) {
-  const newOnes = rows.filter((a) => a.status === "new");
-  return newOnes.length > 0 && newOnes.every((a) => M.sel.has(a.email));
+  return rows.length > 0 && rows.every((a) => M.sel.has(a.email));
 }
 
 
@@ -172,7 +172,6 @@ export function mboxToggle(email, on) {
 export function mboxSelectAll(on) {
   if (M.batch.running) return;
   for (const a of filtered()) {
-    if (a.status !== "new") continue;
     if (on) M.sel.add(a.email);
     else M.sel.delete(a.email);
   }
