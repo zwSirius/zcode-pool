@@ -112,6 +112,13 @@ export const zh = {
 
   "mb.title": "邮箱库",
   "mb.import": "导入 txt",
+  "mb.capture": "添加已有邮箱",
+  "mb.captureTitle": "弹出 z.ai 登录窗：登录已有账号后自动登记到邮箱库",
+  "mb.captureWindow": "已打开 z.ai 登录窗口，登录完成后自动登记",
+  "mb.captureBusy": "已有添加流程在进行中",
+  "mb.captureOk": "已登记 {email} 并标记「已验证」",
+  "mb.captureNoEmail": "登录的账号资料里没有邮箱，无法登记",
+  "mb.captureFail": "添加失败：{err}",
   "mb.export": "导出 txt",
   "mb.verify": "自动验证",
   "mb.stop": "停止",

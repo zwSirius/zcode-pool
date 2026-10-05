@@ -844,6 +844,39 @@ async fn pool_upsert(app: AppHandle, line: String) -> Result<Value, String> {
 }
 
 #[tauri::command]
+async fn pool_capture(app: AppHandle, email: String) -> Result<Value, String> {
+    let email = email.trim().to_string();
+    if !email.contains('@') {
+        return Err(i18n::tr("err.pool.bad_email"));
+    }
+    let _guard = store_guard();
+    let root = Paths::detect().store_dir();
+    let mut accounts = pool::load(&root);
+    let created = if let Some(a) = pool::find_mut(&mut accounts, &email) {
+        a.status = pool::STATUS_VERIFIED.to_string();
+        a.verified_at = Some(store::now_ts());
+        a.note = None;
+        false
+    } else {
+        accounts.push(pool::MailAccount {
+            email: email.clone(),
+            password: String::new(),
+            client_id: String::new(),
+            refresh_token: String::new(),
+            status: pool::STATUS_VERIFIED.to_string(),
+            verified_at: Some(store::now_ts()),
+            note: None,
+            created_at: store::now_ts(),
+        });
+        true
+    };
+    pool::save(&root, &accounts)?;
+    drop(_guard);
+    let _ = app.emit("pool-changed", ());
+    Ok(json!({ "email": email, "created": created }))
+}
+
+#[tauri::command]
 async fn outlook_reauth_begin(email: String) -> Result<Value, String> {
     let root = Paths::detect().store_dir();
     let accounts = pool::load(&root);
@@ -1071,6 +1104,12 @@ fn persist_oauth_account(
             .then(|| oauth::fetch_userinfo(provider, &access_token))
             .flatten()
     });
+    let email = userinfo
+        .as_ref()
+        .and_then(|u| u.get("email"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
     let refresh_token = oauth::extract_refresh_token(provider, raw);
     let ms_user = t_user.elapsed().as_millis();
     let t_cfg = std::time::Instant::now();
@@ -1112,7 +1151,7 @@ fn persist_oauth_account(
         }
         save_account(paths, &dup)?;
         *pending_oauth_guard() = None;
-        return Ok(json!({ "id": dup.id, "name": dup.name, "provider": provider, "duplicate": true }));
+        return Ok(json!({ "id": dup.id, "name": dup.name, "provider": provider, "email": email, "duplicate": true }));
     }
     let base = credentials
         .get(format!("oauth:{provider}:user_info"))
@@ -1141,7 +1180,7 @@ fn persist_oauth_account(
     }
     save_account(paths, &acc)?;
     *pending_oauth_guard() = None;
-    Ok(json!({ "id": acc.id, "name": acc.name, "provider": provider }))
+    Ok(json!({ "id": acc.id, "name": acc.name, "provider": provider, "email": email }))
 }
 
 fn finalize_oauth_result(app: &AppHandle, result: Result<serde_json::Value, String>) {
@@ -1601,6 +1640,7 @@ pub fn run() {
             pool_mark_verified,
             pool_reset,
             pool_upsert,
+            pool_capture,
             outlook_reauth_begin,
             outlook_reauth_poll,
             set_auth_proxy,

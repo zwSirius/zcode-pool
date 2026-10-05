@@ -112,6 +112,13 @@ export const en = {
 
   "mb.title": "Mailbox pool",
   "mb.import": "Import txt",
+  "mb.capture": "Add existing mailbox",
+  "mb.captureTitle": "Open the z.ai login window — sign in an existing account to register it here",
+  "mb.captureWindow": "Login window opened — it registers automatically once you sign in",
+  "mb.captureBusy": "An add flow is already in progress",
+  "mb.captureOk": "Registered {email} and marked as verified",
+  "mb.captureNoEmail": "The signed-in account profile has no email — cannot register",
+  "mb.captureFail": "Failed to add: {err}",
   "mb.export": "Export txt",
   "mb.verify": "Auto-verify",
   "mb.stop": "Stop",

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { t } from "./i18n.js";
 import { ic } from "./icons.js";
 import { esc, toast, openLineModal } from "./ui.js";
@@ -17,6 +18,7 @@ const M = {
   sel: new Set(),
   batch: { running: false, queue: [], total: 0, done: 0, current: "", results: [] },
   lastRun: null,
+  capturing: false,
 };
 
 export function mboxRunning() {
@@ -107,6 +109,7 @@ export function mboxPage() {
     </dl>
     <section class="toolbar">
       <button class="btn p" click="actions.mboxImport()" ${b.running ? "disabled" : ""}>${ic("import", 15)} ${t("mb.import")}</button>
+      <button class="btn p" click="actions.mboxCapture()" ${b.running || M.capturing ? "disabled" : ""} title="${esc(t("mb.captureTitle"))}">${ic("userPlus", 15)} ${t("mb.capture")}</button>
       <button class="btn" click="actions.mboxExport()" ${M.list.length && !b.running ? "" : "disabled"}>${ic("export", 14)} ${t("mb.export")}</button>
       <button class="btn" click="actions.mboxVerify()" ${!M.sel.size || b.running ? "disabled" : ""}>${ic("play", 14)} ${t("mb.verify")}${M.sel.size ? ` (${M.sel.size})` : ""}</button>
       <button class="btn" click="actions.mboxStop()" ${b.running ? "" : "disabled"}>${ic("power", 14)} ${t("mb.stop")}</button>
@@ -198,6 +201,57 @@ export async function mboxImport() {
     else if (r.parsed === 0) toast(t("mb.importEmpty"), "err");
     else toast(t("mb.importDup", { skipped: r.skipped }), "warn");
   } catch (e) {
+    toast(String(e).replace(/^[a-z_]+:/, ""), "err");
+  }
+}
+
+export function mboxCapturing() {
+  return M.capturing;
+}
+
+export function mboxCancelCapture() {
+  M.capturing = false;
+}
+
+export function mboxCapture() {
+  if (M.capturing) {
+    toast(t("mb.captureBusy"), "warn");
+    return;
+  }
+  M.capturing = true;
+  rerender();
+  invoke("oauth_begin", { provider: "zai", mode: "observe" })
+    .then((r) => {
+      regStart(r?.mode || "observe", "zai");
+      toast(t("mb.captureWindow"), "ok");
+    })
+    .catch((e) => {
+      M.capturing = false;
+      rerender();
+      toast(String(e).replace(/^[a-z_]+:/, ""), "err");
+    });
+}
+
+export async function mboxOnCaptureDone(p) {
+  M.capturing = false;
+  if (p.ok === false) {
+    rerender();
+    toast(t("mb.captureFail", { err: p.error || t("m.unknownErr") }), "err");
+    return;
+  }
+  const email = String(p.email || "").trim();
+  if (!email.includes("@")) {
+    rerender();
+    toast(t("mb.captureNoEmail"), "err");
+    return;
+  }
+  try {
+    await invoke("pool_capture", { email });
+    await mboxLoad();
+    rerender();
+    toast(t("mb.captureOk", { email }), "ok");
+  } catch (e) {
+    rerender();
     toast(String(e).replace(/^[a-z_]+:/, ""), "err");
   }
 }
@@ -327,6 +381,10 @@ export async function mboxReauth(email) {
 
 
 export async function mboxVerify() {
+  if (M.capturing) {
+    toast(t("mb.captureBusy"), "warn");
+    return;
+  }
   const emails = [...M.sel].filter((e) => {
     const a = M.list.find((x) => x.email === e);
     return a && a.status === "new";
@@ -433,3 +491,11 @@ export function mboxDismissResult() {
 export function mboxCurrent() {
   return M.batch.running ? M.batch.current : "";
 }
+
+listen("reg://event", (ev) => {
+  const p = ev.payload || {};
+  if (M.capturing && p.kind === "closed") {
+    M.capturing = false;
+    rerender();
+  }
+});

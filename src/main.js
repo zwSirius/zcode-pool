@@ -8,7 +8,7 @@ import {
   setMboxRerender, mboxLoad, mboxPage, mboxFilter, mboxToggle, mboxImport,
   mboxRemove, mboxDelete, mboxSelection, mboxVerify, mboxStop, mboxOnOauthDone, mboxRunning, mboxCurrent, mboxStats,
   mboxSelectAll, mboxSelectNone, mboxToggleRow, mboxExport, mboxRetryFailed, mboxDismissResult, mboxUpdateLine, mboxReauth,
-  mboxSkipCurrent,
+  mboxSkipCurrent, mboxCapturing, mboxOnCaptureDone, mboxCancelCapture,
 } from "./mbox.js";
 
 const $app = document.getElementById("app");
@@ -181,6 +181,7 @@ const actions = {
     render();
   },
   async mboxImport() { await mboxImport(); },
+  async mboxCapture() { mboxCapture(); },
   async mboxVerify() { await mboxVerify(); },
   async mboxStop() { mboxStop(); },
   async mboxFilter(f) { mboxFilter(f); },
@@ -526,6 +527,7 @@ const actions = {
       providers,
       onStart: async (provider, mode) => {
         try {
+          mboxCancelCapture();
           if (regActive()) regClose();
           const r = await invoke("oauth_begin", { provider, mode });
           regStart(r?.mode || mode, provider);
@@ -1498,6 +1500,15 @@ listen("oauth://done", (ev) => {
   const p = ev.payload || {};
   if (mboxRunning() && (p.ok !== false || !p.soft)) {
     mboxOnOauthDone(mboxCurrent(), p.ok !== false, p.ok === false ? (p.error || "") : "");
+    return;
+  }
+  if (mboxCapturing()) {
+    if (p.ok === false) {
+      regEvent({ kind: "log", level: "error", code: "oauthFail", a: p.error || t("m.unknownErr") });
+    } else {
+      regEvent({ kind: "log", level: "ok", code: "oauthDone", a: p.email || p.name || "" });
+    }
+    mboxOnCaptureDone(p);
     return;
   }
   if (p.ok === false) {
