@@ -2,7 +2,7 @@ name: Build (feature branch)
 
 on:
   push:
-    branches: ['feat/add-existing-mailbox']
+    branches: ['feat/auto-claim-cooldown']
   workflow_dispatch:
 
 jobs:
