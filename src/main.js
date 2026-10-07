@@ -40,6 +40,7 @@ const AUTO_CLAIM_PER_ACCOUNT_CAP = 5;
 const AUTO_CLAIM_ACCT_GAP_MS = 5_000;
 const AUTO_CLAIM_RECHECK_MARGIN_MS = 60_000;
 const AUTO_CLAIM_RECHECK_FALLBACK_MS = 24 * 60 * 60 * 1000;
+const AUTO_CLAIM_IDLE_COOLDOWN_MS = 60 * 60 * 1000;
 const AUTO_ABORT_WAIT_MS = 90_000;
 let autoClaimRunning = false;
 let autoClaimCooldown = {};
@@ -772,6 +773,10 @@ async function autoClaimTick() {
         autoClaimCooldown[id] = Number.isFinite(nextCheckAt) && nextCheckAt > now
           ? nextCheckAt + AUTO_CLAIM_RECHECK_MARGIN_MS
           : now + AUTO_CLAIM_RECHECK_FALLBACK_MS;
+      }
+      // 探测过但无可领（plans=0，额度已领完或未放出）：1h 后复检——否则每 10 分钟空探测
+      if (!gotAny && !claimFailed && !(claimable[id]?.plans || []).length) {
+        autoClaimCooldown[id] = Date.now() + AUTO_CLAIM_IDLE_COOLDOWN_MS;
       }
       if (!gotAny && (claimable[id]?.plans || []).length) roundSkipped++;
       await new Promise((res) => setTimeout(res, AUTO_CLAIM_ACCT_GAP_MS));
