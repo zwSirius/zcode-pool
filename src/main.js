@@ -28,7 +28,7 @@ let relay = { running: false, port: 0, served: 0, switched: 0, clientAccount: nu
 // 反代不再取码。留着的是**领取**那条链路 —— 它用的是独立的验证码窗口（captcha.html），与此无关。
 // 万一上游改回去：把下面这段恢复，并在 gateway.rs 的 handle_external 里重新调 take_param()。
 function syncMintFrame(_on) {}
-let tab = "mailbox";
+let tab = "accounts";
 const REFRESH_CLAIM_COOLDOWN_MS = 60_000;
 let refreshClaim = { running: false, done: 0, total: 0, cooldownUntil: 0 };
 let refreshTicker = null;
@@ -38,6 +38,7 @@ const AUTO_CLAIM_FIRST_DELAY_MS = 2 * 60 * 1000;
 const AUTO_CLAIM_WAIT_MS = 45_000;
 const AUTO_CLAIM_PER_ACCOUNT_CAP = 5;
 const AUTO_CLAIM_ACCT_GAP_MS = 5_000;
+const AUTO_CLAIM_RECHECK_MARGIN_MS = 60_000;
 const AUTO_ABORT_WAIT_MS = 90_000;
 let autoClaimRunning = false;
 let autoClaimCooldown = {};
@@ -709,6 +710,8 @@ async function autoClaimTick() {
       if (!state?.auto_claim || autoAbortRequested) break;
       if (!(state.accounts || []).some((a) => a.id === id)) continue;
       let gotAny = false;
+      let claimFailed = false;
+      let nextCheckAt = Infinity;
       claimable[id] = { ...(claimable[id] || {}), busy: true };
       try {
         const r = await invoke("claim_refresh", { id });
@@ -733,23 +736,31 @@ async function autoClaimTick() {
         } catch (e) {
           await invoke("claim_cancel").catch(() => {});
           autoClaimCooldown[id] = Date.now() + AUTO_CLAIM_INTERVAL_MS;
+          claimFailed = true;
           break;
         }
         const r = await waitForClaimResult(id, AUTO_CLAIM_WAIT_MS);
         if (!r) {
           await invoke("claim_cancel").catch(() => {});
           autoClaimCooldown[id] = Date.now() + AUTO_CLAIM_INTERVAL_MS;
+          claimFailed = true;
           break;
         }
         if (r.ok === false) {
           autoClaimCooldown[id] = autoClaimCooldownFor(r);
+          claimFailed = true;
           break;
         }
         gotAny = true; roundClaimed++;
+        if (Number.isFinite(r.endsAt)) nextCheckAt = Math.min(nextCheckAt, r.endsAt);
         await awaitClaimPreviewFresh(id);
         if (!uiLocked()) render();
         progressed = true;
         await new Promise((res) => setTimeout(res, 1200));
+      }
+      // 成功后冷却到下次可领时间（endsAt＝当前周期结束，服务端 1005 的 nextAt 同源；多 plan 取最早，daily 刷新后仍会被探测）
+      if (gotAny && !claimFailed) {
+        autoClaimCooldown[id] = (Number.isFinite(nextCheckAt) ? nextCheckAt : Date.now() + AUTO_CLAIM_INTERVAL_MS) + AUTO_CLAIM_RECHECK_MARGIN_MS;
       }
       if (!gotAny && (claimable[id]?.plans || []).length) roundSkipped++;
       await new Promise((res) => setTimeout(res, AUTO_CLAIM_ACCT_GAP_MS));
@@ -1026,7 +1037,7 @@ function rowHtml(a) {
     <div class="row-top">
       <span class="notch" style="background:${notchColor(a.id)}"></span>
       <div class="row-main">
-        <div class="row-name">${esc(a.name)}${providerBadge(a)}${tierBadgeFor(a.id)}${isActive ? `<span class="tag-use">${t("btn.inUse")}</span>` : ""}${a.has_user_info === false ? `<span class="tag-relogin" title="${esc(t("btn.reloginTitle"))}">${t("btn.relogin")}</span>` : ""}</div>
+        <div class="row-name">${esc(a.name)}${providerBadge(a)}${tierBadgeFor(a.id)}${a.has_user_info === false ? `<span class="tag-relogin" title="${esc(t("btn.reloginTitle"))}">${t("btn.relogin")}</span>` : ""}</div>
         <div class="row-meta">${meta}</div>
       </div>
       <div class="row-actions">
@@ -1035,8 +1046,8 @@ function rowHtml(a) {
         <button class="icon-btn" title="${t("btn.rename")}" aria-label="${t("btn.rename")}" click="actions.rename('${a.id}')">${ic("pen", 16)}</button>
         <button class="icon-btn" title="${t("btn.export")}" aria-label="${t("btn.export")}" click="actions.exportOne('${a.id}')">${ic("export", 16)}</button>
         <button class="icon-btn danger" title="${t("btn.delete")}" aria-label="${t("btn.delete")}" click="actions.delete('${a.id}')">${ic("x", 16)}</button>
-        <button class="btn-switch has-ic" click="actions.askSwitch('${a.id}')" ${isActive ? "disabled" : ""}>
-          ${isActive ? t("btn.current") : ic("swap", 14) + " " + t("btn.switch")}
+        <button class="btn-switch has-ic${isActive ? " in-use" : ""}" click="actions.askSwitch('${a.id}')" ${isActive ? "disabled" : ""}>
+          ${isActive ? t("btn.inUse") : ic("swap", 14) + " " + t("btn.switch")}
         </button>
       </div>
     </div>
@@ -1342,11 +1353,11 @@ function render() {
     <aside class="sidebar">
       <div class="side-brand"><span class="mark">Z·POOL</span>${appVer ? `<span class="v">v${esc(appVer)}</span>` : ""}<span class="brand-caption">${t("m.workspace")}</span></div>
       <nav class="nav">
-        <button class="nav-item${tab === "mailbox" ? " on" : ""}" aria-current="${tab === "mailbox" ? "page" : "false"}" click="actions.setTab('mailbox')">
-          ${ic("mail", 17)} ${t("m.tab.mailbox")}${stats.unverified ? `<span class="badge">${stats.unverified}</span>` : ""}
-        </button>
         <button class="nav-item${tab === "accounts" ? " on" : ""}" aria-current="${tab === "accounts" ? "page" : "false"}" click="actions.setTab('accounts')">
           ${ic("person", 17)} ${t("m.tab.accounts")}${s.accounts.length ? `<span class="badge">${s.accounts.length}</span>` : ""}
+        </button>
+        <button class="nav-item${tab === "mailbox" ? " on" : ""}" aria-current="${tab === "mailbox" ? "page" : "false"}" click="actions.setTab('mailbox')">
+          ${ic("mail", 17)} ${t("m.tab.mailbox")}${stats.unverified ? `<span class="badge">${stats.unverified}</span>` : ""}
         </button>
         <button class="nav-item${tab === "proxy" ? " on" : ""}" aria-current="${tab === "proxy" ? "page" : "false"}" click="actions.setTab('proxy')">
           ${ic("swap", 17)} ${t("p.nav")}

@@ -183,7 +183,6 @@ html, body {
 .chip.new { background: rgba(255, 255, 255, .08); color: var(--label-2); }
 .chip.err { background: rgba(255, 69, 58, .18); color: var(--red); }
 .chip.warn { background: rgba(255, 159, 10, .18); color: var(--orange); }
-.chip.acc { background: var(--blue); color: #fff; }
 
 .cbx {
   appearance: none; flex: none; width: 20px; height: 20px; margin: 0; cursor: pointer;
@@ -405,10 +404,9 @@ body.reg-open .shell { margin-right: 380px; }
 .no-cfg { color: var(--orange); }
 .warn-line { color: var(--orange); }
 
-.tag-prov, .tag-use, .tag-relogin, .tier-b, .free, .small { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 980px; background: rgba(255, 255, 255, .1); color: var(--label-2); }
+.tag-prov, .tag-relogin, .tier-b, .free, .small { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 980px; background: rgba(255, 255, 255, .1); color: var(--label-2); }
 .tag-prov.zai { background: rgba(10, 132, 255, .18); color: var(--blue); }
 .tag-prov.bigmodel { background: rgba(48, 209, 88, .18); color: var(--green); }
-.tag-use { background: var(--blue); color: #fff; }
 .tag-relogin { background: rgba(255, 159, 10, .18); color: var(--orange); }
 .free { background: rgba(48, 209, 88, .18); color: var(--green); }
 
@@ -595,7 +593,7 @@ button { white-space: nowrap; }
 .chip.ok { background: #203b32; }
 .chip.err { background: #3c2830; }
 .chip.new { background: var(--fill); }
-.tag-use, .chip.acc { background: var(--accent); }
+.btn-switch.in-use { background: var(--accent); color: #fff; opacity: 1; }
 .list-head { min-height: 38px; padding: 0 4px 10px; }
 .row[data-email]:has(.mb-check:checked) { background: var(--accent-soft); }
 .row[data-email] { gap: 10px; min-height: 56px; }
