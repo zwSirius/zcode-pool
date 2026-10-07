@@ -221,7 +221,12 @@ async fn claim_preview(id: String) -> Result<Vec<claim::ClaimPlan>, String> {
     let paths = Paths::detect();
     let mid = store::account_mid(&paths, &id)?;
     let acc = load_account(&paths, &id)?;
-    claim::preview_plans(&paths.home, &acc.credentials, acc.config.as_ref(), Some(mid))
+    let res = claim::preview_plans(&paths.home, &acc.credentials, acc.config.as_ref(), Some(mid));
+    match &res {
+        Ok(plans) => flowlog::log("claim", "preview.ok", &format!("{} plans={}", short_id(&id), plans.len())),
+        Err(e) => flowlog::log("claim", "preview.err", &format!("{} {}", short_id(&id), e)),
+    }
+    res
 }
 
 #[derive(serde::Serialize)]
@@ -245,7 +250,24 @@ async fn claim_refresh(id: String) -> Result<ClaimRefreshResult, String> {
             },
             None => (false, None),
         };
-    let plans = claim::preview_plans(&paths.home, &acc.credentials, acc.config.as_ref(), Some(mid))?;
+    let plans = match claim::preview_plans(&paths.home, &acc.credentials, acc.config.as_ref(), Some(mid)) {
+        Ok(p) => p,
+        Err(e) => {
+            flowlog::log("claim", "refresh.err", &format!("{} {}", short_id(&id), e));
+            return Err(e);
+        }
+    };
+    flowlog::log(
+        "claim",
+        "refresh.ok",
+        &format!(
+            "{} plans={} activated={}{}",
+            short_id(&id),
+            plans.len(),
+            activated,
+            activation_error.as_deref().map(|e| format!(" act_err={}", e)).unwrap_or_default()
+        ),
+    );
     Ok(ClaimRefreshResult { plans, activated, activation_error })
 }
 
@@ -268,7 +290,26 @@ pub fn proxy_claim_start(
     claim_start_inner(app, id, plan_id, auto)
 }
 
+fn short_id(id: &str) -> String {
+    id.chars().take(8).collect()
+}
+
 fn claim_start_inner(
+    app: &AppHandle,
+    id: String,
+    plan_id: String,
+    auto: bool,
+) -> Result<serde_json::Value, String> {
+    let tag = format!("{} plan={}", short_id(&id), plan_id);
+    let res = claim_start_attempt(app, id, plan_id, auto);
+    match &res {
+        Ok(_) => flowlog::log("claim", "start.ok", &tag),
+        Err(e) => flowlog::log("claim", "start.err", &format!("{} {}", tag, e)),
+    }
+    res
+}
+
+fn claim_start_attempt(
     app: &AppHandle,
     id: String,
     plan_id: String,
@@ -367,12 +408,35 @@ async fn claim_captcha_submit(
                 ends_at: ms("ends_at"),
                 server_time,
             };
+            flowlog::log(
+                "claim",
+                "result.ok",
+                &format!(
+                    "{} plan={} starts_at={:?} ends_at={:?}",
+                    short_id(&pending.account_id),
+                    pending.plan_name,
+                    outcome.starts_at,
+                    outcome.ends_at
+                ),
+            );
             let p = serde_json::to_value(&outcome).unwrap_or(Value::Null);
             record_claim_result(&p);
             let _ = app.emit("claim://result", &p);
             p
         }
         Err(e) => {
+            flowlog::log(
+                "claim",
+                "result.err",
+                &format!(
+                    "{} plan={} code={} next_at={:?} {}",
+                    short_id(&pending.account_id),
+                    pending.plan_name,
+                    e.code,
+                    e.next_at,
+                    e.message
+                ),
+            );
             let p = claim::failure_payload(
                 &pending.account_id,
                 &pending.account_name,

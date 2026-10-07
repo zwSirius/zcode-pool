@@ -39,6 +39,7 @@ const AUTO_CLAIM_WAIT_MS = 45_000;
 const AUTO_CLAIM_PER_ACCOUNT_CAP = 5;
 const AUTO_CLAIM_ACCT_GAP_MS = 5_000;
 const AUTO_CLAIM_RECHECK_MARGIN_MS = 60_000;
+const AUTO_CLAIM_RECHECK_FALLBACK_MS = 24 * 60 * 60 * 1000;
 const AUTO_ABORT_WAIT_MS = 90_000;
 let autoClaimRunning = false;
 let autoClaimCooldown = {};
@@ -698,7 +699,13 @@ async function autoClaimTick() {
     .filter((id) => (autoClaimCooldown[id] ?? 0) <= Date.now());
   if (!ids.length) {
     if ((state.accounts || []).some((a) => (claimable[a.id]?.plans || []).length > 0)) {
-      lastAutoRound = { at: Date.now(), claimed: 0, skipped: 0, cooldownAll: true };
+      // 全部冷却中不算一次「检测」：不刷新时间戳，否则「上次检测」会每 10 分钟空转更新
+      lastAutoRound = {
+        at: lastAutoRound?.at ?? Date.now(),
+        claimed: lastAutoRound?.claimed ?? 0,
+        skipped: lastAutoRound?.skipped ?? 0,
+        cooldownAll: true,
+      };
     }
     return;
   }
@@ -758,9 +765,13 @@ async function autoClaimTick() {
         progressed = true;
         await new Promise((res) => setTimeout(res, 1200));
       }
-      // 成功后冷却到下次可领时间（endsAt＝当前周期结束，服务端 1005 的 nextAt 同源；多 plan 取最早，daily 刷新后仍会被探测）
+      // 成功后冷却到下次可领时间（endsAt＝当前周期结束，服务端 1005 的 nextAt 同源；多 plan 取最早，daily 刷新后仍会被探测）。
+      // 服务端若未返回有效 endsAt，兜底静默 24h——否则会退化为每 10 分钟空探测。
       if (gotAny && !claimFailed) {
-        autoClaimCooldown[id] = (Number.isFinite(nextCheckAt) ? nextCheckAt : Date.now() + AUTO_CLAIM_INTERVAL_MS) + AUTO_CLAIM_RECHECK_MARGIN_MS;
+        const now = Date.now();
+        autoClaimCooldown[id] = Number.isFinite(nextCheckAt) && nextCheckAt > now
+          ? nextCheckAt + AUTO_CLAIM_RECHECK_MARGIN_MS
+          : now + AUTO_CLAIM_RECHECK_FALLBACK_MS;
       }
       if (!gotAny && (claimable[id]?.plans || []).length) roundSkipped++;
       await new Promise((res) => setTimeout(res, AUTO_CLAIM_ACCT_GAP_MS));
