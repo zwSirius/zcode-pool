@@ -1514,13 +1514,32 @@ fn auth_token(req: &tiny_http::Request) -> String {
         match h.field.as_str().as_str().to_ascii_lowercase().as_str() {
             "x-api-key" => return h.value.as_str().to_string(),
             "authorization" => {
-                let v = h.value.as_str();
+                let v = h.value.as_str().trim();
+                // Basic 是浏览器认证框发来的格式（user:password，key 放密码栏）
+                if let Some(b64) = v.strip_prefix("Basic ") {
+                    return basic_password(b64);
+                }
                 return v.strip_prefix("Bearer ").unwrap_or(v).trim().to_string();
             }
             _ => {}
         }
     }
     String::new()
+}
+
+// 解出 Basic 凭据里的 API Key：优先密码栏；密码栏为空但用户名栏有值时按误填处理
+fn basic_password(b64: &str) -> String {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    STANDARD
+        .decode(b64.trim().as_bytes())
+        .ok()
+        .and_then(|raw| String::from_utf8(raw).ok())
+        .map(|s| match s.split_once(':') {
+            Some((user, pw)) if !pw.is_empty() => pw.to_string(),
+            Some((user, _)) if !user.is_empty() => user.to_string(),
+            _ => s,
+        })
+        .unwrap_or_default()
 }
 
 fn mint_stats(g: &Inner) -> Value {
@@ -2144,9 +2163,18 @@ fn handle(mut req: tiny_http::Request, gw: &Gateway) -> Result<(), String> {
         let got = auth_token(&req);
         if !keys.iter().any(|k| *k == got) {
             crate::flowlog::log("relay", "auth-deny", &format!("{path} 凭据不对"));
+            // 带 WWW-Authenticate: Basic，浏览器会弹认证框，填对 API Key 即可进入
+            let challenge = tiny_http::Header::from_bytes(
+                &b"WWW-Authenticate"[..],
+                &b"Basic realm=\"zcode-pool\", charset=\"UTF-8\""[..],
+            )
+            .expect("fixed header bytes");
             let _ = req.respond(
-                tiny_http::Response::from_string("unauthorized：请在 x-api-key 或 Authorization 里带上 API Key\n")
-                    .with_status_code(401),
+                tiny_http::Response::from_string(
+                    "unauthorized：API Key 不对 —— 浏览器访问在弹出的认证框里把 API Key 填进密码栏；程序调用放 x-api-key 或 Authorization 头\n",
+                )
+                .with_status_code(401)
+                .with_header(challenge),
             );
             return Ok(());
         }

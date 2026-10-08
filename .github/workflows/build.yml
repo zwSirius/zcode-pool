@@ -2,7 +2,7 @@ name: Build (feature branch)
 
 on:
   push:
-    branches: ['feat/auto-claim-cooldown']
+    branches: ['feat/proxy-basic-auth']
   workflow_dispatch:
 
 jobs:
