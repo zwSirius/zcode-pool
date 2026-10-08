@@ -1010,7 +1010,7 @@ function viewSettings() {
         '<div class="kv"><span class="k"></span><div class="copy"><span class="mono">' + esc(k) +
         '</span><button class="btn" data-copy="' + esc(k) + '">' + ICON("copy", 14) + '复制</button><button class="mini danger" data-keydel="' + esc(k) + '">' + ICON("trash", 14) + '删</button></div></div>').join("")}
       <div style="color:var(--dim2);font-size:11.5px;margin-top:6px">
-        <b>本机不用带 key</b>（对话页、控制台都不填）；<b>局域网来的请求必须带</b>，写在 <span class="mono">x-api-key</span> 或 <span class="mono">Authorization: Bearer</span> 里。
+        <b>本机不用带 key</b>（对话页、控制台都不填）；<b>局域网来的请求必须带</b>，写在 <span class="mono">x-api-key</span> 或 <span class="mono">Authorization: Bearer</span> 里；局域网浏览器打开对话页 / 控制台会弹认证框，把 API Key 填进<b>密码栏</b>即可。
       </div>
 
       <div class="kv"><span class="k">额度缓存</span>
